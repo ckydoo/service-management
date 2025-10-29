@@ -6,20 +6,22 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('quotations', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('service_request_id')->constrained()->onDelete('cascade');
+            $table->decimal('labor_cost', 10, 2);
+            $table->decimal('parts_cost', 10, 2)->default(0);
+            $table->decimal('total_cost', 10, 2);
+            $table->enum('status', ['pending', 'approved', 'rejected'])->default('pending');
+            $table->timestamp('approved_at')->nullable();
+            $table->timestamp('rejected_at')->nullable();
+            $table->text('notes')->nullable();
             $table->timestamps();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('quotations');

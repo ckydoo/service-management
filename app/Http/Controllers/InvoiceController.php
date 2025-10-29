@@ -58,4 +58,11 @@ class InvoiceController extends Controller
 
         return response()->json(['success' => true]);
     }
+    public function pending()
+{
+    $proofs = PaymentProof::where('verification_status', 'pending')
+        ->with('invoice.customer')
+        ->paginate(10);
+    return view('invoices.pending', ['proofs' => $proofs]);
+}
 }

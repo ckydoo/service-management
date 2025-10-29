@@ -65,4 +65,22 @@ class TechnicianController extends Controller
 
         return response()->json(['success' => true]);
     }
+
+    public function profile()
+{
+    $technician = auth()->user()->technician;
+    return view('technician.profile', ['technician' => $technician]);
+}
+
+public function index()
+{
+    $technicians = Technician::with('user')->paginate(10);
+    return view('technicians.index', ['technicians' => $technicians]);
+}
+
+public function show($id)
+{
+    $technician = Technician::with('user', 'jobCards')->findOrFail($id);
+    return view('technicians.show', ['technician' => $technician]);
+}
 }
