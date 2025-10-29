@@ -141,27 +141,58 @@ Route::middleware('auth')->group(function () {
     });
 
     // ---- Invoices ----
-    Route::prefix('invoices')->group(function () {
-        Route::get('/', [InvoiceController::class, 'customerInvoices'])
-            ->name('invoices.index');
+    // ---- Invoices ----
+Route::prefix('invoices')->group(function () {
+    Route::get('/', [InvoiceController::class, 'customerInvoices'])
+        ->name('invoices.index');
 
-        Route::middleware('role:costing_officer')->group(function () {
-            Route::get('/pending', [InvoiceController::class, 'pending'])
-                ->name('invoices.pending');
-            Route::post('/verify-payment/{proofId}', [InvoiceController::class, 'verifyPayment'])
-                ->name('invoices.verify-payment');
-        });
+    Route::get('/{id}', [InvoiceController::class, 'show'])
+        ->name('invoices.show');
+
+    // ---- Customer: Upload Payment Proof ----
+    Route::middleware('role:customer')->group(function () {
+        Route::get('/{id}/upload-proof', function($id) {
+            $invoice = Invoice::findOrFail($id);
+            $user = auth()->user();
+            if ($invoice->serviceRequest->customer_id !== $user->customer->id) {
+                abort(403);
+            }
+            return view('invoices.upload-payment-proof', ['invoice' => $invoice]);
+        })->name('invoices.upload-proof-form');
 
         Route::post('/{id}/payment-proof', [InvoiceController::class, 'uploadPaymentProof'])
             ->name('invoices.upload-proof');
+    });
 
-            // ---- Manager Only: Create Invoices ----
+    // ---- Costing Officer: Verify Payments ----
+    Route::middleware('role:costing_officer')->group(function () {
+        Route::get('/pending', [InvoiceController::class, 'pending'])
+            ->name('invoices.pending');
+
+        Route::post('/verify-payment/{proofId}', [InvoiceController::class, 'verifyPayment'])
+            ->name('invoices.verify-payment');
+
+        Route::get('/proof/{proofId}/download', [InvoiceController::class, 'downloadProof'])
+            ->name('invoices.download-proof');
+    });
+
+    // ---- Manager Only: Create Invoices ----
     Route::middleware('role:manager')->group(function () {
-        Route::get('/invoices/create/{serviceRequestId}', [InvoiceController::class, 'create'])
+        Route::get('/create/{serviceRequestId}', [InvoiceController::class, 'create'])
             ->name('invoices.create');
-        Route::post('/invoices', [InvoiceController::class, 'store'])
+
+        Route::post('/', [InvoiceController::class, 'store'])
             ->name('invoices.store');
+
+        Route::post('/{id}/status', [InvoiceController::class, 'updateStatus'])
+            ->name('invoices.update-status');
+
+        Route::get('/{id}/mark-paid', [InvoiceController::class, 'markAsPaid'])
+            ->name('invoices.markAsPaid');
+
+        Route::delete('/{id}', [InvoiceController::class, 'destroy'])
+            ->name('invoices.destroy');
     });
-    });
+});
     
 });

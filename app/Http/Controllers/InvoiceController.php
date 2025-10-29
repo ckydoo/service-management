@@ -181,4 +181,152 @@ class InvoiceController extends Controller
         $nextNumber = ($lastInvoice ? intval(substr($lastInvoice->invoice_number, 4)) : 0) + 1;
         return 'INV-' . str_pad($nextNumber, 6, '0', STR_PAD_LEFT);
     }
+
+      /**
+     * Upload payment proof for an invoice
+     */
+    public function uploadPaymentProof(Request $request, $id)
+    {
+        $invoice = Invoice::findOrFail($id);
+        
+        // Authorization: only customer can upload proof for their own invoice
+        $user = auth()->user();
+        if ($user->role === 'customer') {
+            $customer = $user->customer;
+            if ($invoice->serviceRequest->customer_id !== $customer->id) {
+                return redirect()->back()->with('error', 'Unauthorized');
+            }
+        }
+
+        $validated = $request->validate([
+            'proof_file' => 'required|file|mimes:pdf,jpg,jpeg,png|max:5120', // 5MB max
+            'payment_reference' => 'required|string|max:100',
+            'payment_method' => 'required|in:bank_transfer,cash,check,mobile_money',
+            'payment_date' => 'required|date|before_or_equal:today',
+        ]);
+
+        try {
+            // Store the file
+            $filePath = $request->file('proof_file')->store('payment-proofs', 'private');
+
+            // Create payment proof record
+            $paymentProof = PaymentProof::create([
+                'invoice_id' => $invoice->id,
+                'file_path' => $filePath,
+                'verification_status' => 'pending',
+            ]);
+
+            // Update invoice status to reflect proof uploaded
+            $invoice->update([
+                'payment_status' => 'proof_uploaded',
+            ]);
+
+            // Notify Costing Officer (implement notification)
+            // Notification::send($costingOfficers, new PaymentProofUploaded($paymentProof));
+
+            return redirect()->route('invoices.show', $invoice->id)
+                            ->with('success', 'Payment proof uploaded successfully. Awaiting verification.');
+
+        } catch (\Exception $e) {
+            return redirect()->back()
+                            ->with('error', 'Failed to upload proof: ' . $e->getMessage())
+                            ->withInput();
+        }
+    }
+
+    /**
+     * Get pending payment proofs for Costing Officer
+     */
+    public function pending(Request $request)
+    {
+        // Only Costing Officer can access this
+        if (auth()->user()->role !== 'costing_officer') {
+            abort(403, 'Unauthorized');
+        }
+
+        $pendingProofs = PaymentProof::where('verification_status', 'pending')
+            ->with('invoice.serviceRequest.customer.user', 'invoice.serviceRequest.machine')
+            ->orderBy('created_at', 'desc')
+            ->paginate(15);
+
+        return view('payment-proofs.pending', ['paymentProofs' => $pendingProofs]);
+    }
+
+    /**
+     * Verify payment proof
+     */
+    public function verifyPayment(Request $request, $proofId)
+    {
+        // Only Costing Officer can verify
+        if (auth()->user()->role !== 'costing_officer') {
+            abort(403, 'Unauthorized');
+        }
+
+        $paymentProof = PaymentProof::findOrFail($proofId);
+
+        $validated = $request->validate([
+            'verification_status' => 'required|in:verified,rejected',
+            'verification_notes' => 'nullable|string|max:500',
+        ]);
+
+        try {
+            // Update payment proof
+            $paymentProof->update([
+                'verification_status' => $validated['verification_status'],
+                'verification_notes' => $validated['verification_notes'] ?? null,
+                'verified_by' => auth()->id(),
+                'verified_at' => now(),
+            ]);
+
+            // Update invoice based on verification result
+            $invoice = $paymentProof->invoice;
+
+            if ($validated['verification_status'] === 'verified') {
+                $invoice->update([
+                    'payment_status' => 'verified',
+                    'payment_verified_at' => now(),
+                ]);
+
+                $message = 'Payment verified successfully.';
+            } else {
+                $invoice->update([
+                    'payment_status' => 'rejected',
+                ]);
+
+                $message = 'Payment verification rejected.';
+            }
+
+            // Send notification to customer
+            // Notification::send($invoice->serviceRequest->customer, new PaymentVerified($invoice));
+
+            return redirect()->route('invoices.pending')
+                            ->with('success', $message);
+
+        } catch (\Exception $e) {
+            return redirect()->back()
+                            ->with('error', 'Verification failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Display a payment proof file (with authorization)
+     */
+    public function downloadProof($proofId)
+    {
+        $paymentProof = PaymentProof::findOrFail($proofId);
+        $invoice = $paymentProof->invoice;
+
+        // Authorization: only customer, costing officer, or manager can access
+        $user = auth()->user();
+        if ($user->role === 'customer') {
+            $customer = $user->customer;
+            if ($invoice->serviceRequest->customer_id !== $customer->id) {
+                abort(403, 'Unauthorized');
+            }
+        } elseif (!in_array($user->role, ['costing_officer', 'manager'])) {
+            abort(403, 'Unauthorized');
+        }
+
+        return Storage::download($paymentProof->file_path);
+    }
 }
