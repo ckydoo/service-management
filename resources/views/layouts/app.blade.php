@@ -90,19 +90,41 @@
                     <a href="{{ route('technician.profile') }}" class="nav-link">
                         <i class="fas fa-user"></i> Profile
                     </a>
-                @elseif(auth()->user()->role === 'manager')
-                    <a href="{{ route('manager.dashboard') }}" class="nav-link">
-                        <i class="fas fa-chart-line"></i> Dashboard
-                    </a>
-                    <a href="{{ route('service-requests.index') }}" class="nav-link">
-                        <i class="fas fa-list-check"></i> All Requests
-                    </a>
-                    <a href="{{ route('technicians.index') }}" class="nav-link">
-                        <i class="fas fa-people"></i> Technicians
-                    </a>
-                    <a href="{{ route('invoices.index') }}" class="nav-link">
-                        <i class="fas fa-file-invoice"></i> Invoices
-                    </a>
+                
+@elseif(auth()->user()->role === 'manager')
+<a href="{{ route('manager.dashboard') }}" class="nav-link {{ request()->routeIs('manager.dashboard') ? 'active' : '' }}">
+    <i class="fas fa-chart-line"></i> Dashboard
+</a>
+
+<hr class="my-2">
+
+<p class="nav-label small text-muted px-3 mt-3 mb-2">SERVICE MANAGEMENT</p>
+
+<a href="{{ route('service-requests.index') }}" class="nav-link {{ request()->routeIs('service-requests.*') ? 'active' : '' }}">
+    <i class="fas fa-list-check"></i> Service Requests
+</a>
+
+<a href="{{ route('invoices.index') }}" class="nav-link {{ request()->routeIs('invoices.*') ? 'active' : '' }}">
+    <i class="fas fa-file-invoice"></i> Invoices
+</a>
+
+<hr class="my-2">
+
+<p class="nav-label small text-muted px-3 mt-3 mb-2">MANAGEMENT</p>
+
+<a href="{{ route('customers.index') }}" class="nav-link {{ request()->routeIs('customers.*') ? 'active' : '' }}">
+    <i class="fas fa-users"></i> Customers
+</a>
+
+<a href="{{ route('technicians.index') }}" class="nav-link {{ request()->routeIs('technicians.*') ? 'active' : '' }}">
+    <i class="fas fa-people-carry"></i> Technicians
+    <span class="badge bg-primary float-end">{{ \App\Models\Technician::count() }}</span>
+</a>
+
+<a href="{{ route('technicians.create') }}" class="nav-link">
+    <i class="fas fa-plus-circle"></i> Add Technician
+</a>
+
                 @elseif(auth()->user()->role === 'costing_officer')
                     <a href="{{ route('invoices.pending') }}" class="nav-link">
                         <i class="fas fa-hourglass"></i> Pending Verifications
