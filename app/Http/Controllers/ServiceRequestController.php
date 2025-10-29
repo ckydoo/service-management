@@ -1,34 +1,113 @@
 <?php
 
-// app/Http/Controllers/ServiceRequestController.php
 namespace App\Http\Controllers;
 
 use App\Models\ServiceRequest;
 use App\Models\Quotation;
 use App\Models\PricingTemplate;
+use App\Models\Customer;
 use Illuminate\Http\Request;
 
 class ServiceRequestController extends Controller
 {
-    // Create a new service request
+    /**
+     * List all service requests (Manager view)
+     */
+    public function index()
+    {
+        $requests = ServiceRequest::with('customer', 'machine', 'quotation')
+            ->paginate(15);
+
+        return view('service-requests.index', ['requests' => $requests]);
+    }
+
+    /**
+     * List customer's own service requests
+     */
+    public function customerIndex()
+    {
+        $user = auth()->user();
+        $customer = $user->customer;
+
+        if (!$customer) {
+            // User has no associated customer record
+            $requests = collect();
+            $requests = new \Illuminate\Pagination\Paginator($requests, 15);
+        } else {
+            $requests = ServiceRequest::where('customer_id', $customer->id)
+                ->with('machine', 'quotation', 'jobCard')
+                ->paginate(15);
+        }
+
+        return view('service-requests.customer-index', ['requests' => $requests]);
+    }
+
+    /**
+     * Show service request details (Manager view)
+     */
+    public function show($id)
+    {
+        $request = ServiceRequest::with('customer', 'machine', 'quotation', 'jobCard')
+            ->findOrFail($id);
+
+        return view('service-requests.show', ['request' => $request]);
+    }
+
+    /**
+     * Show service request details (Customer view)
+     */
+    public function customerShow($id)
+    {
+        $user = auth()->user();
+        $customer = $user->customer;
+
+        $request = ServiceRequest::with('customer', 'machine', 'quotation', 'jobCard')
+            ->findOrFail($id);
+
+        // Authorize: customer can only see their own requests
+        if ($request->customer_id !== $customer->id) {
+            abort(403, 'Unauthorized - this request does not belong to you');
+        }
+
+        return view('service-requests.customer-show', ['request' => $request]);
+    }
+
+    /**
+     * Show create service request form (Customer)
+     */
+    public function create()
+    {
+        return view('service-requests.create');
+    }
+
+    /**
+     * Create a new service request (Customer)
+     */
     public function store(Request $request)
     {
+        $user = auth()->user();
+        $customer = $user->customer;
+
+        if (!$customer) {
+            abort(403, 'You must have a customer profile to submit requests');
+        }
+
         $validated = $request->validate([
-            'customer_id' => 'required|exists:customers,id',
             'machine_id' => 'nullable|exists:machines,id',
-            'request_description' => 'required|string',
+            'request_description' => 'required|string|max:2000',
             'request_type' => 'required|in:breakdown,maintenance,installation',
+            'requires_assessment' => 'sometimes|boolean',
         ]);
 
         $referenceNumber = 'SR-' . date('YmdHis') . '-' . rand(1000, 9999);
 
         $serviceRequest = ServiceRequest::create([
             'reference_number' => $referenceNumber,
-            'customer_id' => $validated['customer_id'],
+            'customer_id' => $customer->id,
             'machine_id' => $validated['machine_id'],
             'request_description' => $validated['request_description'],
             'request_type' => $validated['request_type'],
-            'requires_assessment' => $request->requires_assessment ?? false,
+            'requires_assessment' => $validated['requires_assessment'] ?? false,
             'status' => 'submitted',
         ]);
 
@@ -37,18 +116,18 @@ class ServiceRequestController extends Controller
             $this->generateQuotation($serviceRequest);
         }
 
-        return response()->json([
-            'success' => true,
-            'reference_number' => $referenceNumber,
-            'message' => 'Service request submitted successfully'
-        ]);
+        return redirect()->route('service-requests.show', $serviceRequest->id)
+            ->with('success', 'Service request submitted successfully. Reference: ' . $referenceNumber);
     }
 
-    // Generate quotation based on pricing templates
+    /**
+     * Generate quotation based on pricing templates
+     */
     private function generateQuotation($serviceRequest)
     {
         $template = PricingTemplate::where('service_type', $serviceRequest->request_type)
-            ->where('is_active', true)->first();
+            ->where('is_active', true)
+            ->first();
 
         if (!$template) {
             return null;
@@ -70,36 +149,19 @@ class ServiceRequestController extends Controller
         return $quotation;
     }
 
-    // List all service requests
-    public function index()
-    {
-        $requests = ServiceRequest::with('customer', 'machine', 'quotation')
-            ->paginate(15);
-
-        return view('service-requests.index', ['requests' => $requests]);
-    }
-
-    // Show details of a specific request
-    public function show($id)
-    {
-        $request = ServiceRequest::with('customer', 'machine', 'quotation', 'jobCard')
-            ->findOrFail($id);
-
-        return view('service-requests.show', ['request' => $request]);
-    }
-
-    // Update service request status
+    /**
+     * Update service request status (Manager)
+     */
     public function updateStatus(Request $request, $id)
     {
         $serviceRequest = ServiceRequest::findOrFail($id);
-        $serviceRequest->update(['status' => $request->status]);
 
-        return response()->json(['success' => true]);
+        $validated = $request->validate([
+            'status' => 'required|in:submitted,assessed,assigned,in_progress,completed,cancelled'
+        ]);
+
+        $serviceRequest->update(['status' => $validated['status']]);
+
+        return response()->json(['success' => true, 'message' => 'Status updated successfully']);
     }
 }
-
-
-
-
-
-
