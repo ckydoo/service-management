@@ -8,20 +8,18 @@ use Illuminate\Http\Request;
 class RoleMiddleware
 {
     /**
-     * Role Hierarchy
+     * Simple Role-Based Access Control
      *
-     * Higher numbers mean more privileges
-     * Admin can access everything, customer has least access
-     *
-     * This is flexible - you can adjust based on your needs
+     * No hierarchy confusion - each role can only access their specific routes
+     * Admin can optionally access all routes if needed
      */
-    protected array $roleHierarchy = [
-        'admin'          => 100,  // Can access everything
-        'manager'        => 80,   // Can access manager routes and some shared
-        'costing_officer' => 60,  // Can access costing officer specific routes
-        'data_capturer'  => 50,   // Can access data capturer specific routes
-        'technician'     => 40,   // Can access technician specific routes
-        'customer'       => 30,   // Can access customer specific routes (lowest)
+    protected array $roles = [
+        'admin',
+        'manager',
+        'costing_officer',
+        'data_capturer',
+        'technician',
+        'customer',
     ];
 
     /**
@@ -40,88 +38,18 @@ class RoleMiddleware
         }
 
         $userRole = auth()->user()->role;
-        $userLevel = $this->roleHierarchy[$userRole] ?? 0;
 
-        // Option 1: Strict matching (exact role required)
-        // Uncomment below and comment out Option 2 if you want strict role matching
-        /*
-        if (!in_array($userRole, $roles)) {
-            abort(403, 'Access denied. Required role(s): ' . implode(', ', $roles) . '. Your role: ' . $userRole);
-        }
-        return $next($request);
-        */
-
-        // Option 2: Hierarchy matching (user with higher role can access lower roles' routes)
-        // This is FLEXIBLE - allows role hierarchy
-        foreach ($roles as $role) {
-            $requiredLevel = $this->roleHierarchy[$role] ?? 0;
-
-            // User's role matches OR user has higher privilege level
-            if ($userRole === $role || $userLevel >= $requiredLevel) {
-                return $next($request);
-            }
+        // Admin has access to everything (optional, remove if not needed)
+        if ($userRole === 'admin') {
+            return $next($request);
         }
 
-        // If we get here, user is not authorized
-        abort(403, 'Access denied. Required role(s): ' . implode(', ', $roles) . '. Your role: ' . $userRole);
-    }
-
-    /**
-     * Check if user has a specific role
-     *
-     * @param string $role
-     * @return bool
-     */
-    public function userHasRole(string $role): bool
-    {
-        return auth()->check() && auth()->user()->role === $role;
-    }
-
-    /**
-     * Check if user's role level is at least the required level
-     *
-     * @param string $requiredRole
-     * @return bool
-     */
-    public function userHasMinimumRole(string $requiredRole): bool
-    {
-        if (!auth()->check()) {
-            return false;
+        // Simple check: does user's role match any of the allowed roles?
+        if (in_array($userRole, $roles, true)) {
+            return $next($request);
         }
 
-        $userLevel = $this->roleHierarchy[auth()->user()->role] ?? 0;
-        $requiredLevel = $this->roleHierarchy[$requiredRole] ?? 0;
-
-        return $userLevel >= $requiredLevel;
-    }
-
-    /**
-     * Get all roles that a user can access
-     *
-     * @param string $userRole
-     * @return array
-     */
-    public function getAccessibleRoles(string $userRole): array
-    {
-        $userLevel = $this->roleHierarchy[$userRole] ?? 0;
-        $accessible = [];
-
-        foreach ($this->roleHierarchy as $role => $level) {
-            if ($userLevel >= $level || $userRole === $role) {
-                $accessible[] = $role;
-            }
-        }
-
-        return $accessible;
-    }
-
-    /**
-     * Get role hierarchy (for admin settings)
-     *
-     * @return array
-     */
-    public function getRoleHierarchy(): array
-    {
-        return $this->roleHierarchy;
+        // Access denied
+        abort(403, 'Unauthorized. Your role: ' . $userRole . ' cannot access this resource.');
     }
 }

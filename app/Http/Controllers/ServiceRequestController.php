@@ -66,7 +66,7 @@ class ServiceRequestController extends Controller
             ->orderBy('created_at', 'desc')
             ->paginate(15);
 
-        return view('data-capturer.service-requests.index', ['requests' => $requests]);
+        return view('service-requests.index', ['requests' => $requests]);
     }
 
     /**
@@ -77,7 +77,7 @@ class ServiceRequestController extends Controller
         $customers = Customer::with('user')->get();
         $machines = Machine::all();
 
-        return view('data-capturer.service-requests.create', [
+        return view('service-requests.create', [
             'customers' => $customers,
             'machines' => $machines,
         ]);
@@ -108,7 +108,7 @@ class ServiceRequestController extends Controller
             'status' => 'pending_review', // Data capturer creates as pending review
         ]);
 
-        return redirect()->route('data-capturer.service-requests.show', $serviceRequest->id)
+        return redirect()->route('service-requests.show', $serviceRequest->id)
             ->with('success', 'Service request created successfully. Reference: ' . $referenceNumber);
     }
 
@@ -120,7 +120,7 @@ class ServiceRequestController extends Controller
         $request = ServiceRequest::with('customer', 'machine', 'quotation', 'jobCard')
             ->findOrFail($id);
 
-        return view('data-capturer.service-requests.show', ['request' => $request]);
+        return view('service-requests.show', ['request' => $request]);
     }
 
     /**
@@ -132,7 +132,7 @@ class ServiceRequestController extends Controller
         $customers = Customer::with('user')->get();
         $machines = Machine::all();
 
-        return view('data-capturer.service-requests.edit', [
+        return view('service-requests.edit', [
             'request' => $request,
             'customers' => $customers,
             'machines' => $machines,
@@ -161,7 +161,7 @@ class ServiceRequestController extends Controller
 
         $serviceRequest->update($validated);
 
-        return redirect()->route('data-capturer.service-requests.show', $serviceRequest->id)
+        return redirect()->route('service-requests.show', $serviceRequest->id)
             ->with('success', 'Service request updated successfully');
     }
 
