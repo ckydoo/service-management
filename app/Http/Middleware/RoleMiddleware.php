@@ -7,6 +7,12 @@ use Illuminate\Http\Request;
 
 class RoleMiddleware
 {
+    /**
+     * Handle an incoming request.
+     *
+     * Managers bypass all role restrictions and see everything.
+     * Other roles must have the required role.
+     */
     public function handle(Request $request, Closure $next, ...$roles)
     {
         // Check if user is authenticated
@@ -14,11 +20,25 @@ class RoleMiddleware
             return redirect()->route('login');
         }
 
-        // Check if user has required role
-        if (!in_array(auth()->user()->role, $roles)) {
-            abort(403, 'Unauthorized - insufficient permissions');
+        $user = auth()->user();
+        $userRole = $user->role ?? 'guest';
+
+        // MANAGER ALWAYS HAS ACCESS TO EVERYTHING
+        if ($userRole === 'manager') {
+            return $next($request);
         }
 
-        return $next($request);
+        // If no roles specified, allow all authenticated users
+        if (empty($roles)) {
+            return $next($request);
+        }
+
+        // Check if user has required role
+        if (in_array($userRole, $roles)) {
+            return $next($request);
+        }
+
+        // User doesn't have required role - deny access
+        abort(403, "Access denied. Required role(s): " . implode(', ', $roles) . ". Your role: {$userRole}");
     }
 }

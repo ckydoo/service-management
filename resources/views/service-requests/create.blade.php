@@ -1,80 +1,69 @@
 @extends('layouts.app')
 
-@section('title', 'Create Service Request')
+@section('title', 'Submit Service Request')
 
 @section('content')
 <div class="page-content">
     <div class="container-fluid">
         <!-- Header -->
-        <div class="mb-4">
-            <h1 class="h3 mb-0">
-                <i class="fas fa-plus-circle text-primary me-2"></i>New Service Request
-            </h1>
-            <p class="text-muted small mt-1">Submit a new service request for your machine</p>
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1 class="h3 mb-0">
+                    <i class="fas fa-plus-circle text-primary me-2"></i>Submit New Service Request
+                </h1>
+                <p class="text-muted small mt-1">Describe the issue and we'll help you resolve it</p>
+            </div>
+            <a href="{{ route('service-requests.index') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Requests
+            </a>
         </div>
 
-        <!-- Form Card -->
-        <div class="row justify-content-center">
+        <div class="row">
             <div class="col-lg-8">
                 <div class="card card-dashboard">
                     <div class="card-header bg-primary text-white">
-                        <h5 class="mb-0">Service Request Details</h5>
+                        <h5 class="mb-0">Request Details</h5>
                     </div>
                     <div class="card-body">
-                        @if ($errors->any())
-                            <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                                <strong>Please fix the following errors:</strong>
-                                <ul class="mb-0 mt-2">
-                                    @foreach ($errors->all() as $error)
-                                        <li>{{ $error }}</li>
-                                    @endforeach
-                                </ul>
-                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                            </div>
-                        @endif
-
                         <form action="{{ route('service-requests.store') }}" method="POST">
                             @csrf
 
                             <!-- Machine Selection -->
                             <div class="mb-3">
                                 <label for="machine_id" class="form-label">
-                                    <i class="fas fa-cogs text-primary me-1"></i>Machine (Optional)
+                                    <i class="fas fa-cog text-primary"></i> Select Your Machine
                                 </label>
-                                <select class="form-control @error('machine_id') is-invalid @enderror" 
-                                        id="machine_id" name="machine_id">
+                                <select name="machine_id" id="machine_id" class="form-select @error('machine_id') is-invalid @enderror">
                                     <option value="">-- Select a machine --</option>
-                                    @if(auth()->user()->customer && auth()->user()->customer->machines)
-                                        @foreach(auth()->user()->customer->machines as $machine)
-                                            <option value="{{ $machine->id }}" 
-                                                    {{ old('machine_id') == $machine->id ? 'selected' : '' }}>
-                                                {{ $machine->machine_name }} ({{ $machine->machine_model ?? 'N/A' }})
-                                            </option>
-                                        @endforeach
-                                    @endif
+                                    @forelse($machines ?? [] as $machine)
+                                        <option value="{{ $machine->id }}" @selected(old('machine_id') == $machine->id)>
+                                            {{ $machine->machine_name }} ({{ $machine->model ?? 'N/A' }})
+                                        </option>
+                                    @empty
+                                        <option value="" disabled>No machines found</option>
+                                    @endforelse
                                 </select>
                                 @error('machine_id')
                                     <div class="invalid-feedback d-block">{{ $message }}</div>
                                 @enderror
-                                <small class="form-text text-muted">Select a machine or leave blank if not listed</small>
+                                <small class="form-text text-muted">You can select a specific machine or leave blank</small>
                             </div>
 
                             <!-- Request Type -->
                             <div class="mb-3">
                                 <label for="request_type" class="form-label">
-                                    <i class="fas fa-list text-primary me-1"></i>Service Type <span class="text-danger">*</span>
+                                    <i class="fas fa-list text-primary"></i> Request Type <span class="text-danger">*</span>
                                 </label>
-                                <select class="form-control @error('request_type') is-invalid @enderror" 
-                                        id="request_type" name="request_type" required>
-                                    <option value="">-- Select a type --</option>
-                                    <option value="breakdown" {{ old('request_type') == 'breakdown' ? 'selected' : '' }}>
-                                        <i class="fas fa-exclamation-triangle"></i> Breakdown / Emergency
+                                <select name="request_type" id="request_type" class="form-select @error('request_type') is-invalid @enderror" required>
+                                    <option value="">-- Select type --</option>
+                                    <option value="breakdown" @selected(old('request_type') == 'breakdown')>
+                                        <i class="fas fa-wrench"></i> Breakdown/Repair
                                     </option>
-                                    <option value="maintenance" {{ old('request_type') == 'maintenance' ? 'selected' : '' }}>
-                                        <i class="fas fa-wrench"></i> Preventive Maintenance
+                                    <option value="maintenance" @selected(old('request_type') == 'maintenance')>
+                                        <i class="fas fa-hammer"></i> Maintenance
                                     </option>
-                                    <option value="installation" {{ old('request_type') == 'installation' ? 'selected' : '' }}>
-                                        <i class="fas fa-tools"></i> Installation / Setup
+                                    <option value="installation" @selected(old('request_type') == 'installation')>
+                                        <i class="fas fa-box"></i> Installation
                                     </option>
                                 </select>
                                 @error('request_type')
@@ -82,61 +71,86 @@
                                 @enderror
                             </div>
 
-                            <!-- Description -->
+                            <!-- Request Description -->
                             <div class="mb-3">
                                 <label for="request_description" class="form-label">
-                                    <i class="fas fa-pen-to-square text-primary me-1"></i>Description <span class="text-danger">*</span>
+                                    <i class="fas fa-pen-to-square text-primary"></i> Describe the Issue <span class="text-danger">*</span>
                                 </label>
-                                <textarea class="form-control @error('request_description') is-invalid @enderror" 
-                                          id="request_description" name="request_description" 
-                                          rows="5" placeholder="Describe your service request in detail..." required>{{ old('request_description') }}</textarea>
+                                <textarea 
+                                    name="request_description" 
+                                    id="request_description" 
+                                    class="form-control @error('request_description') is-invalid @enderror" 
+                                    rows="6" 
+                                    placeholder="Provide detailed information about the problem, symptoms, or what you need..."
+                                    required
+                                >{{ old('request_description') }}</textarea>
                                 @error('request_description')
                                     <div class="invalid-feedback d-block">{{ $message }}</div>
                                 @enderror
-                                <small class="form-text text-muted">Provide as much detail as possible to help us understand your needs</small>
+                                <small class="form-text text-muted">Minimum 10 characters, maximum 2000 characters</small>
                             </div>
 
-                            <!-- Assessment Checkbox -->
+                            <!-- Assessment Required -->
                             <div class="mb-4">
                                 <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="requires_assessment" 
-                                           name="requires_assessment" value="1"
-                                           {{ old('requires_assessment') ? 'checked' : '' }}>
-                                    <label class="form-check-label" for="requires_assessment">
-                                        <i class="fas fa-clipboard-list text-primary me-1"></i>I need a free assessment/quotation before proceeding
+                                    <input 
+                                        type="checkbox" 
+                                        name="requires_assessment" 
+                                        id="requires_assessment" 
+                                        class="form-check-input"
+                                        value="1"
+                                        @checked(old('requires_assessment'))
+                                    >
+                                    <label for="requires_assessment" class="form-check-label">
+                                        <i class="fas fa-user-check text-primary"></i> 
+                                        This requires an on-site assessment
                                     </label>
                                 </div>
                                 <small class="form-text text-muted d-block mt-2">
-                                    Check this if you'd like a technician to assess the issue and provide a quotation first
+                                    Check this if you need a technician to visit and assess the problem on-site
                                 </small>
                             </div>
 
                             <!-- Form Actions -->
-                            <div class="d-grid gap-2 d-sm-flex justify-content-sm-end">
-                                <a href="{{ route('service-requests.index') }}" class="btn btn-secondary">
-                                    <i class="fas fa-arrow-left me-1"></i>Cancel
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                                <a href="{{ route('service-requests.index') }}" class="btn btn-light">
+                                    <i class="fas fa-times"></i> Cancel
                                 </a>
                                 <button type="submit" class="btn btn-primary">
-                                    <i class="fas fa-paper-plane me-1"></i>Submit Request
+                                    <i class="fas fa-paper-plane"></i> Submit Request
                                 </button>
                             </div>
                         </form>
                     </div>
                 </div>
+            </div>
 
-                <!-- Help Section -->
-                <div class="card mt-4" style="background-color: #f8f9fa;">
+            <!-- Info Sidebar -->
+            <div class="col-lg-4">
+                <div class="card card-dashboard mb-3">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0"><i class="fas fa-info-circle"></i> Need Help?</h5>
+                    </div>
                     <div class="card-body">
-                        <h6 class="card-title">
-                            <i class="fas fa-circle-info text-info me-2"></i>Need Help?
-                        </h6>
-                        <p class="small text-muted mb-2">
-                            <strong>Service Types:</strong>
-                        </p>
-                        <ul class="small text-muted">
-                            <li><strong>Breakdown/Emergency:</strong> Machine has stopped working or is in critical condition</li>
-                            <li><strong>Preventive Maintenance:</strong> Regular maintenance to prevent future issues</li>
-                            <li><strong>Installation/Setup:</strong> Installation of new equipment or configuration assistance</li>
+                        <h6 class="mb-2">Request Types:</h6>
+                        <ul class="list-unstyled small">
+                            <li class="mb-2"><strong>Breakdown/Repair:</strong> Emergency repairs for malfunctioning equipment</li>
+                            <li class="mb-2"><strong>Maintenance:</strong> Routine maintenance and preventive care</li>
+                            <li class="mb-2"><strong>Installation:</strong> New equipment installation or setup</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="card card-dashboard">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0"><i class="fas fa-check-circle"></i> Quick Tips</h5>
+                    </div>
+                    <div class="card-body small">
+                        <ul class="list-unstyled">
+                            <li class="mb-2">✓ Provide as much detail as possible</li>
+                            <li class="mb-2">✓ Include error messages if any</li>
+                            <li class="mb-2">✓ Mention when the problem started</li>
+                            <li class="mb-2">✓ Check the assessment box if needed</li>
                         </ul>
                     </div>
                 </div>
@@ -144,16 +158,4 @@
         </div>
     </div>
 </div>
-
-<style>
-    .card-dashboard {
-        border: none;
-        box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
-    }
-
-    .form-control:focus {
-        border-color: #0d6efd;
-        box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
-    }
-</style>
 @endsection

@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Invoice;
 use App\Models\ServiceRequest;
 use Illuminate\Http\Request;
+use App\Models\PaymentProof;
+
 
 class InvoiceController extends Controller
 {
