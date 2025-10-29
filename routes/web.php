@@ -154,5 +154,14 @@ Route::middleware('auth')->group(function () {
 
         Route::post('/{id}/payment-proof', [InvoiceController::class, 'uploadPaymentProof'])
             ->name('invoices.upload-proof');
+
+            // ---- Manager Only: Create Invoices ----
+    Route::middleware('role:manager')->group(function () {
+        Route::get('/invoices/create/{serviceRequestId}', [InvoiceController::class, 'create'])
+            ->name('invoices.create');
+        Route::post('/invoices', [InvoiceController::class, 'store'])
+            ->name('invoices.store');
     });
+    });
+    
 });
