@@ -36,14 +36,15 @@ class QuotationController extends Controller
 
     /**
      * Approve quotation with AUTOMATIC technician assignment
+     * FIXED: Returns redirect for form submission OR JSON for AJAX
      */
-    public function approve($id)
+    public function approve(Request $request, $id)
     {
         try {
             DB::beginTransaction();
 
             $quotation = Quotation::findOrFail($id);
-
+            
             // Update quotation status
             $quotation->update([
                 'status' => 'approved',
@@ -51,37 +52,65 @@ class QuotationController extends Controller
             ]);
 
             $serviceRequest = $quotation->serviceRequest;
-
+            
             // Create job card and auto-assign technician
             $result = $this->autoAssignTechnician($serviceRequest);
 
             if ($result['success']) {
                 DB::commit();
-
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Quotation approved and job assigned to technician',
-                    'job_card_id' => $result['job_card_id'],
-                    'technician_name' => $result['technician_name']
-                ]);
+                
+                $message = 'Quotation approved successfully! Job assigned to ' . $result['technician_name'];
+                
+                // Check if it's an AJAX request (from JavaScript)
+                if ($request->expectsJson() || $request->ajax()) {
+                    return response()->json([
+                        'success' => true,
+                        'message' => $message,
+                        'job_card_id' => $result['job_card_id'],
+                        'technician_name' => $result['technician_name']
+                    ]);
+                }
+                
+                // For regular form submission, redirect back with success message
+                return redirect()
+                    ->back()
+                    ->with('success', $message);
+                    
             } else {
-                // Rollback if technician assignment fails
                 DB::rollBack();
-
-                return response()->json([
-                    'success' => false,
-                    'message' => $result['message']
-                ], 400);
+                
+                // Check if it's an AJAX request
+                if ($request->expectsJson() || $request->ajax()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => $result['message']
+                    ], 400);
+                }
+                
+                // For regular form submission
+                return redirect()
+                    ->back()
+                    ->with('error', $result['message']);
             }
 
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Quotation approval failed: ' . $e->getMessage());
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to approve quotation: ' . $e->getMessage()
-            ], 500);
+            
+            $errorMessage = 'Failed to approve quotation. Please try again.';
+            
+            // Check if it's an AJAX request
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $errorMessage
+                ], 500);
+            }
+            
+            // For regular form submission
+            return redirect()
+                ->back()
+                ->with('error', $errorMessage);
         }
     }
 
@@ -98,7 +127,7 @@ class QuotationController extends Controller
             if (!$technician) {
                 // No technician available - update request status but don't fail
                 $serviceRequest->update(['status' => 'pending_assignment']);
-
+                
                 return [
                     'success' => false,
                     'message' => 'No available technician found. Job marked as pending assignment.'
@@ -190,7 +219,7 @@ class QuotationController extends Controller
 
         // Return technician with highest score
         $bestMatch = $scoredTechnicians->sortByDesc('score')->first();
-
+        
         return $bestMatch ? $bestMatch['technician'] : null;
     }
 
@@ -236,8 +265,9 @@ class QuotationController extends Controller
 
     /**
      * Reject quotation
+     * FIXED: Returns redirect for form submission OR JSON for AJAX
      */
-    public function reject($id)
+    public function reject(Request $request, $id)
     {
         $quotation = Quotation::findOrFail($id);
         $quotation->update([
@@ -248,10 +278,20 @@ class QuotationController extends Controller
         $serviceRequest = $quotation->serviceRequest;
         $serviceRequest->update(['status' => 'rejected']);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Quotation rejected'
-        ]);
+        $message = 'Quotation rejected successfully.';
+        
+        // Check if it's an AJAX request
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => $message
+            ]);
+        }
+        
+        // For regular form submission
+        return redirect()
+            ->back()
+            ->with('warning', $message);
     }
 
     // ============================================================
