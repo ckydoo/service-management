@@ -28,19 +28,19 @@
                     </div>
 
                     <div class="mb-3">
-                        <label for="proof_file" class="form-label">
+                        <label for="payment_proof" class="form-label">
                             <i class="fas fa-file"></i> Payment Proof Document <span class="text-danger">*</span>
                         </label>
-                        <input type="file" 
-                               name="proof_file" 
-                               id="proof_file" 
-                               class="form-control @error('proof_file') is-invalid @enderror"
+                        <input type="file"
+                               name="payment_proof"
+                               id="payment_proof"
+                               class="form-control @error('payment_proof') is-invalid @enderror"
                                accept=".pdf,.jpg,.jpeg,.png"
                                required>
                         <small class="form-text text-muted">
                             Accepted: PDF, JPG, JPEG, PNG (Maximum 5MB)
                         </small>
-                        @error('proof_file')
+                        @error('payment_proof')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
                     </div>
@@ -49,8 +49,8 @@
                         <label for="payment_method" class="form-label">
                             <i class="fas fa-credit-card"></i> Payment Method <span class="text-danger">*</span>
                         </label>
-                        <select name="payment_method" 
-                                id="payment_method" 
+                        <select name="payment_method"
+                                id="payment_method"
                                 class="form-select @error('payment_method') is-invalid @enderror"
                                 required>
                             <option value="">-- Select Payment Method --</option>
@@ -76,9 +76,9 @@
                         <label for="payment_date" class="form-label">
                             <i class="fas fa-calendar"></i> Payment Date <span class="text-danger">*</span>
                         </label>
-                        <input type="date" 
-                               name="payment_date" 
-                               id="payment_date" 
+                        <input type="date"
+                               name="payment_date"
+                               id="payment_date"
                                class="form-control @error('payment_date') is-invalid @enderror"
                                value="{{ old('payment_date', date('Y-m-d')) }}"
                                required>
@@ -91,9 +91,9 @@
                         <label for="payment_reference" class="form-label">
                             <i class="fas fa-hashtag"></i> Payment Reference/Transaction ID <span class="text-danger">*</span>
                         </label>
-                        <input type="text" 
-                               name="payment_reference" 
-                               id="payment_reference" 
+                        <input type="text"
+                               name="payment_reference"
+                               id="payment_reference"
                                class="form-control @error('payment_reference') is-invalid @enderror"
                                placeholder="e.g., TXN123456, Check #789"
                                value="{{ old('payment_reference') }}"
@@ -128,7 +128,7 @@
             <div class="card-body">
                 <p>
                     <strong>Invoice #:</strong> {{ $invoice->invoice_number }}<br>
-                    <strong>Amount Due:</strong> 
+                    <strong>Amount Due:</strong>
                     <span class="badge bg-danger">${{ number_format($invoice->amount, 2) }}</span><br>
                     <strong>Status:</strong>
                     @if($invoice->payment_status === 'pending')

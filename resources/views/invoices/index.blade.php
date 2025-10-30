@@ -62,8 +62,8 @@
                 <td>{{ $invoice->serviceRequest->reference_number ?? 'N/A' }}</td>
                 <td>${{ number_format($invoice->amount, 2) }}</td>
                 <td>
-                    {{ \Carbon\Carbon::parse($invoice->due_date)->format('M d, Y') }}
-                    @if(\Carbon\Carbon::now()->isAfter($invoice->due_date) && $invoice->status !== 'paid')
+                    {{ $invoice->due_date ? \Carbon\Carbon::parse($invoice->due_date)->format('M d, Y') : 'N/A' }}
+                    @if($invoice->due_date && \Carbon\Carbon::now()->isAfter($invoice->due_date) && $invoice->status !== 'paid')
                     <span class="badge bg-danger ms-2">Overdue</span>
                     @endif
                 </td>

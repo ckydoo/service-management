@@ -10,14 +10,23 @@ class Invoice extends Model
 {
     /**
      * The attributes that are mass assignable.
+     *
+     * FIX: Added missing fields that are required by the database schema
      */
     protected $fillable = [
-        'service_request_id',
-        'invoice_number',
-        'total_amount',
-        'payment_status',        // IMPORTANT: This is the correct column name
-        'payment_verified_at',
-        'notes',
+        'invoice_number',           // ✓ Already there
+        'job_card_id',             // ✓ ADDED - Required by schema
+        'service_request_id',       // ✓ Already there
+        'customer_id',             // ✓ ADDED - Required by schema
+        'subtotal',                // ✓ ADDED - Required by schema
+        'tax',                     // ✓ ADDED - Required by schema
+        'total_amount',            // ✓ Already there
+        'payment_status',          // ✓ Already there
+        'issued_at',               // Optional
+        'due_at',                  // Optional
+        'paid_at',                 // Optional
+        'payment_verified_at',     // ✓ Already there
+        'notes',                   // ✓ Already there
         'due_date',
     ];
 
@@ -25,6 +34,9 @@ class Invoice extends Model
      * The attributes that should be cast.
      */
     protected $casts = [
+        'issued_at' => 'datetime',
+        'due_at' => 'datetime',
+        'paid_at' => 'datetime',
         'due_date' => 'date',
         'payment_verified_at' => 'datetime',
         'created_at' => 'datetime',
@@ -37,6 +49,22 @@ class Invoice extends Model
     public function serviceRequest(): BelongsTo
     {
         return $this->belongsTo(ServiceRequest::class);
+    }
+
+    /**
+     * Get the customer that this invoice belongs to
+     */
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class);
+    }
+
+    /**
+     * Get the job card that this invoice belongs to
+     */
+    public function jobCard(): BelongsTo
+    {
+        return $this->belongsTo(JobCard::class);
     }
 
     /**

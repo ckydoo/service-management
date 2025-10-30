@@ -3,9 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Invoice;
-use App\Models\ServiceRequest;
-use Illuminate\Http\Request;
 use App\Models\PaymentProof;
+use Illuminate\Http\Request;
+use App\Models\ServiceRequest;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 
@@ -330,7 +331,7 @@ class InvoiceController extends Controller
     /**
      * Upload payment proof for an invoice
      */
-    public function uploadProofOfPayment(Request $request, $id)
+    public function uploadProofForm($id)
     {
         $invoice = Invoice::findOrFail($id);
 
@@ -339,42 +340,63 @@ class InvoiceController extends Controller
         if ($user->role === 'customer') {
             $customer = $user->customer;
             if ($invoice->serviceRequest->customer_id !== $customer->id) {
-                return redirect()->back()->with('error', 'Unauthorized');
+                abort(403, 'Unauthorized');
             }
         }
 
-        $validated = $request->validate([
-            'proof_file' => 'required|file|mimes:pdf,jpg,jpeg,png|max:5120', // 5MB max
-            'payment_reference' => 'required|string|max:100',
-            'payment_method' => 'required|in:bank_transfer,cash,check,mobile_money',
-            'payment_date' => 'required|date|before_or_equal:today',
-        ]);
+        // Load the view that contains the form
+        return view('invoices.upload-payment-proof', ['invoice' => $invoice]);
+    }
+
+    // Replace your existing uploadProofOfPayment method with this:
+public function uploadProofOfPayment(Request $request, $id)
+    {
+        $invoice = Invoice::findOrFail($id);
+
+        // Authorization: only customer can upload proof for their own invoice
+        $user = auth()->user();
+        if ($user->role === 'customer') {
+            $customer = $user->customer;
+            if ($invoice->serviceRequest->customer_id !== $customer->id) {
+                abort(403, 'Unauthorized');
+            }
+        }
 
         try {
-            // Store the file
-            $filePath = $request->file('proof_file')->store('payment-proofs', 'private');
+            // STEP 1: Validate all required fields
+            $validated = $request->validate([
+                'payment_proof' => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120', // max 5MB
+                'payment_reference' => 'required|string|max:255',
+                'payment_method' => 'required|string|max:50',
+                'payment_date' => 'required|date',
+            ]);
 
-            // Create payment proof record
-            $paymentProof = PaymentProof::create([
+            // Store the uploaded file
+            $filePath = $request->file('payment_proof')->store('payment_proofs');
+
+            // STEP 2: Create payment proof record with all required fields
+            \App\Models\PaymentProof::create([
                 'invoice_id' => $invoice->id,
                 'file_path' => $filePath,
                 'verification_status' => 'pending',
+                'payment_reference' => $validated['payment_reference'],
+                'payment_method' => $validated['payment_method'],
+                'payment_date' => $validated['payment_date'],
             ]);
 
-            // Update invoice status to reflect proof uploaded
-            $invoice->update([
-                'payment_status' => 'proof_uploaded',
-            ]);
-
-            // Notify Costing Officer (implement notification)
-            // Notification::send($costingOfficers, new PaymentProofUploaded($paymentProof));
+            // Update invoice payment status
+            $invoice->update(['status' => 'proof_uploaded']);
 
             return redirect()->route('invoices.show', $invoice->id)
                             ->with('success', 'Payment proof uploaded successfully. Awaiting verification.');
 
         } catch (\Exception $e) {
+            // STEP 3: Catch any exception and redirect with an error message
+            Log::error("Payment proof upload failed for Invoice ID {$invoice->id}: " . $e->getMessage());
+
             return redirect()->back()
-                            ->with('error', 'Failed to upload proof: ' . $e->getMessage());
+                            ->with('error', 'Upload failed. Please check form data and file permissions. Error: ' . $e->getMessage())
+                            ->withInput();
         }
     }
 

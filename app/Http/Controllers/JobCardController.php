@@ -38,7 +38,7 @@ class JobCardController extends Controller
     public function update(Request $request, $id)
     {
         $jobCard = JobCard::findOrFail($id);
-        
+
         $validated = $request->validate([
             'status' => 'sometimes|in:pending,in_progress,completed,cancelled',
             'estimated_duration' => 'sometimes|numeric|min:1',
@@ -106,64 +106,93 @@ class JobCardController extends Controller
         return response()->json(['success' => true, 'message' => 'Status updated']);
     }
 
-    /**
-     * Submit service report
-     */
-    public function submitReport(Request $request, $id)
-    {
-        $jobCard = JobCard::findOrFail($id);
+   /**
+ * Submit service report
+ *
+ * Replace the existing submitReport() method in JobCardController
+ */
+public function submitReport(Request $request, $id)
+{
+    // FIX: Eager load the serviceRequest relationship
+    $jobCard = JobCard::with('serviceRequest')->findOrFail($id);
 
-        $validated = $request->validate([
-            'work_completed' => 'required|string|max:2000',
-            'parts_used' => 'nullable|string|max:1000',
-            'labor_hours' => 'required|numeric|min:0.5|max:24',
-            'notes' => 'nullable|string|max:1000',
-        ]);
+    $validated = $request->validate([
+        'work_completed' => 'required|string|max:2000',
+        'parts_used' => 'nullable|string|max:1000',
+        'labor_hours' => 'required|numeric|min:0.5|max:24',
+        'notes' => 'nullable|string|max:1000',
+    ]);
 
-        ServiceReport::create([
-            'job_card_id' => $jobCard->id,
-            'technician_id' => $jobCard->technician_id,
-            'work_completed' => $validated['work_completed'],
-            'parts_used' => $validated['parts_used'],
-            'labor_hours' => $validated['labor_hours'],
-            'additional_notes' => $validated['notes']
-        ]);
+    ServiceReport::create([
+        'job_card_id' => $jobCard->id,
+        'technician_id' => $jobCard->technician_id,
+        'work_completed' => $validated['work_completed'],
+        'parts_used' => $validated['parts_used'],
+        'labor_hours' => $validated['labor_hours'],
+        'additional_notes' => $validated['notes']
+    ]);
 
-        $jobCard->update(['status' => 'completed']);
+    $jobCard->update(['status' => 'completed']);
 
-        // Generate invoice
-        $this->generateInvoice($jobCard);
+    // Generate invoice
+    $this->generateInvoice($jobCard);
 
-        return response()->json(['success' => true, 'message' => 'Service report submitted']);
+    return response()->json(['success' => true, 'message' => 'Service report submitted']);
+}
+
+/**
+ * Generate invoice after job completion
+ *
+ * Replace the existing generateInvoice() method in JobCardController
+ */
+private function generateInvoice($jobCard)
+{
+    // Ensure relationships are loaded
+    if (!$jobCard->relationLoaded('serviceRequest')) {
+        $jobCard->load('serviceRequest.quotation');
+    } else if (!$jobCard->serviceRequest->relationLoaded('quotation')) {
+        $jobCard->serviceRequest->load('quotation');
     }
 
-    /**
-     * Generate invoice after job completion
-     */
-    private function generateInvoice($jobCard)
-    {
-        $serviceRequest = $jobCard->serviceRequest;
-        $quotation = $serviceRequest->quotation;
+    $serviceRequest = $jobCard->serviceRequest;
+    $quotation = $serviceRequest->quotation;
 
-        if (!$quotation) {
-            return null;
-        }
-
-        $existingInvoice = Invoice::where('job_card_id', $jobCard->id)->first();
-        if ($existingInvoice) {
-            return $existingInvoice;
-        }
-
-        $invoice = Invoice::create([
-            'job_card_id' => $jobCard->id,
-            'service_request_id' => $serviceRequest->id,
-            'customer_id' => $serviceRequest->customer_id,
-            'subtotal' => $quotation->total_cost,
-            'tax' => $quotation->total_cost * 0.15,
-            'total_amount' => $quotation->total_cost * 1.15,
-            'payment_status' => 'pending'
-        ]);
-
-        return $invoice;
+    if (!$quotation) {
+        return null;
     }
+
+    // Check if invoice already exists for this job card
+    $existingInvoice = Invoice::where('job_card_id', $jobCard->id)->first();
+    if ($existingInvoice) {
+        return $existingInvoice;
+    }
+
+    // Generate unique invoice number
+    $invoiceNumber = $this->generateInvoiceNumber();
+
+    $invoice = Invoice::create([
+        'invoice_number' => $invoiceNumber,
+        'job_card_id' => $jobCard->id,
+        'service_request_id' => $serviceRequest->id,
+        'customer_id' => $serviceRequest->customer_id,  // Now this will work!
+        'subtotal' => $quotation->total_cost,
+        'tax' => $quotation->total_cost * 0.15,
+        'total_amount' => $quotation->total_cost * 1.15,
+        'payment_status' => 'pending'
+    ]);
+
+    return $invoice;
+}
+
+/**
+ * Generate unique invoice number
+ *
+ * Add this helper method if it doesn't exist in JobCardController
+ */
+private function generateInvoiceNumber()
+{
+    $lastInvoice = Invoice::orderByDesc('id')->first();
+    $nextNumber = ($lastInvoice ? intval(substr($lastInvoice->invoice_number, 4)) : 0) + 1;
+    return 'INV-' . str_pad($nextNumber, 6, '0', STR_PAD_LEFT);
+}
 }

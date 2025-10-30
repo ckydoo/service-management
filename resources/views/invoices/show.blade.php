@@ -1,3 +1,8 @@
+@extends('layouts.app')
+
+@section('title', 'Invoices')
+
+@section('content')
 @if(auth()->user()->role === 'customer')
     <!-- Payment Status Section for Customers -->
     <div class="row mb-4">
@@ -8,7 +13,7 @@
                     This invoice requires payment. Please upload proof of payment below to complete the transaction.
                 </p>
                 <small class="text-muted">
-                    Current Status: 
+                    Current Status:
                     @if($invoice->payment_status === 'pending')
                         <strong>Awaiting Payment</strong>
                     @elseif($invoice->payment_status === 'proof_uploaded')
@@ -55,7 +60,7 @@
                             <small><strong>Officer Notes:</strong> {{ $latestProof->verification_notes }}</small>
                         </div>
                         @endif
-                        
+
                         @if($latestProof->verification_status !== 'verified')
                         <div class="mt-3">
                             <a href="{{ route('invoices.upload-proof-form', $invoice->id) }}" class="btn btn-sm btn-primary">
@@ -93,3 +98,5 @@
         </div>
     </div>
 @endif
+
+@endsection

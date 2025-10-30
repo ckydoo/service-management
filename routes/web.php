@@ -195,7 +195,9 @@ Route::middleware(['auth', 'role:customer'])->group(function () {
     // Invoices
     Route::prefix('invoices')->name('invoices.')->group(function () {
         Route::get('/', [InvoiceController::class, 'customerIndex'])->name('index');
-        Route::get('/{id}', [InvoiceController::class, 'customerShow'])->name('show');
+        Route::get('/{id}', [InvoiceController::class, 'show'])->name('show');
+        // ADD THIS LINE TO DEFINE THE MISSING ROUTE
+        Route::get('/{id}/upload-proof-form', [InvoiceController::class, 'uploadProofForm'])->name('upload-proof-form');
         Route::post('/{id}/upload-proof', [InvoiceController::class, 'uploadProofOfPayment'])->name('upload-proof');
     });
 });
