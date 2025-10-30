@@ -54,7 +54,7 @@ class ServiceRequestController extends Controller
     }
 
     // ============================================================
-    // DATA CAPTURER METHODS - NEW!
+    // DATA CAPTURER METHODS - FIXED ROUTES!
     // ============================================================
 
     /**
@@ -108,7 +108,8 @@ class ServiceRequestController extends Controller
             'status' => 'pending_review', // Data capturer creates as pending review
         ]);
 
-        return redirect()->route('service-requests.show', $serviceRequest->id)
+        // FIXED: Use data-capturer specific route instead of generic route
+        return redirect()->route('data-capturer.service-requests.show', $serviceRequest->id)
             ->with('success', 'Service request created successfully. Reference: ' . $referenceNumber);
     }
 
@@ -161,7 +162,8 @@ class ServiceRequestController extends Controller
 
         $serviceRequest->update($validated);
 
-        return redirect()->route('service-requests.show', $serviceRequest->id)
+        // FIXED: Use data-capturer specific route
+        return redirect()->route('data-capturer.service-requests.show', $serviceRequest->id)
             ->with('success', 'Service request updated successfully');
     }
 
@@ -170,22 +172,17 @@ class ServiceRequestController extends Controller
     // ============================================================
 
     /**
-     * List customer's own service requests
+     * List service requests (Customer view - their own only)
      */
     public function customerIndex()
     {
         $user = auth()->user();
         $customer = $user->customer;
 
-        if (!$customer) {
-            $requests = collect();
-            $requests = new \Illuminate\Pagination\Paginator($requests, 15);
-        } else {
-            $requests = ServiceRequest::where('customer_id', $customer->id)
-                ->with('machine', 'quotation', 'jobCard')
-                ->orderBy('created_at', 'desc')
-                ->paginate(15);
-        }
+        $requests = ServiceRequest::with('customer', 'machine', 'quotation')
+            ->where('customer_id', $customer->id)
+            ->orderBy('created_at', 'desc')
+            ->paginate(15);
 
         return view('service-requests.customer-index', ['requests' => $requests]);
     }
@@ -198,26 +195,18 @@ class ServiceRequestController extends Controller
         $user = auth()->user();
         $customer = $user->customer;
 
-        if (!$customer) {
-            return back()->with('error', 'You must have a customer profile to submit requests');
-        }
-
         $machines = Machine::where('customer_id', $customer->id)->get();
 
         return view('service-requests.create', ['machines' => $machines]);
     }
 
     /**
-     * Create a new service request (Customer)
+     * Create a new service request (Customer submits their own)
      */
     public function store(Request $request)
     {
         $user = auth()->user();
         $customer = $user->customer;
-
-        if (!$customer) {
-            abort(403, 'You must have a customer profile to submit requests');
-        }
 
         $validated = $request->validate([
             'machine_id' => 'nullable|exists:machines,id',
@@ -247,24 +236,6 @@ class ServiceRequestController extends Controller
             ->with('success', 'Service request submitted successfully. Reference: ' . $referenceNumber);
     }
 
-    /**
-     * Show service request details (Customer view)
-     */
-    public function customerShow($id)
-    {
-        $user = auth()->user();
-        $customer = $user->customer;
-
-        $request = ServiceRequest::with('customer', 'machine', 'quotation', 'jobCard')
-            ->findOrFail($id);
-
-        // Authorize: customer can only see their own requests
-        if ($request->customer_id !== $customer->id) {
-            abort(403, 'Unauthorized - this request does not belong to you');
-        }
-
-        return view('service-requests.customer-show', ['request' => $request]);
-    }
 
     // ============================================================
     // HELPER METHODS
@@ -298,4 +269,25 @@ class ServiceRequestController extends Controller
 
         return $quotation;
     }
+
+
+/**
+ * Show service request details (Customer view)
+ */
+public function customerShow($id)
+{
+    $user = auth()->user();
+    $customer = $user->customer;
+
+    if (!$customer) {
+        abort(403, 'You must have a customer profile to view requests');
+    }
+
+    // Ensure customer can only view their own requests
+    $request = ServiceRequest::with('customer', 'machine', 'quotation', 'jobCard')
+        ->where('customer_id', $customer->id)
+        ->findOrFail($id);
+
+    return view('service-requests.customer-show', ['request' => $request]);
+}
 }

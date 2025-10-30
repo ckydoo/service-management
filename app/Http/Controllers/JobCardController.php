@@ -73,7 +73,7 @@ class JobCardController extends Controller
             ->whereDate('updated_at', today())
             ->count();
 
-        return view('technician.dashboard', [
+        return view('technicians.dashboard', [
             'jobs' => $activeJobs,
             'completedToday' => $completedToday
         ]);

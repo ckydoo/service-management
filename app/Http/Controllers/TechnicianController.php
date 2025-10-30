@@ -154,27 +154,8 @@ class TechnicianController extends Controller
             ->first();
     }
 
-    /**
-     * Update technician location and status
-     */
-    public function updateLocation(Request $request, $id)
-    {
-        $technician = Technician::findOrFail($id);
-        $technician->update([
-            'current_location_lat' => $request->latitude,
-            'current_location_lng' => $request->longitude,
-        ]);
 
-        return response()->json(['success' => true]);
-    }
 
-    public function updateAvailability(Request $request, $id)
-    {
-        $technician = Technician::findOrFail($id);
-        $technician->update(['availability_status' => $request->status]);
-
-        return response()->json(['success' => true]);
-    }
 
     /**
      * Get technician profile
@@ -182,6 +163,69 @@ class TechnicianController extends Controller
     public function profile()
     {
         $technician = auth()->user()->technician;
-        return view('technician.profile', ['technician' => $technician]);
+        return view('technicians.profile', ['technician' => $technician]);
     }
+
+/**
+ * Update technician's current location
+ * Used by technician mobile app or dashboard
+ */
+public function updateLocation(Request $request)
+{
+    $user = auth()->user();
+    $technician = $user->technician;
+
+    if (!$technician) {
+        return response()->json(['error' => 'User is not a technician'], 403);
+    }
+
+    $validated = $request->validate([
+        'latitude' => 'required|numeric|between:-90,90',
+        'longitude' => 'required|numeric|between:-180,180',
+    ]);
+
+    $technician->update([
+        'current_location_lat' => $validated['latitude'],
+        'current_location_lng' => $validated['longitude'],
+        'last_location_update' => now(),
+    ]);
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Location updated successfully'
+    ]);
+}
+
+/**
+ * Update technician's availability status
+ * Statuses: available, busy, offline
+ */
+public function updateAvailability(Request $request)
+{
+    $user = auth()->user();
+    $technician = $user->technician;
+
+    if (!$technician) {
+        return response()->json(['error' => 'User is not a technician'], 403);
+    }
+
+    $validated = $request->validate([
+        'status' => 'required|in:available,busy,offline',
+    ]);
+
+    $technician->update([
+        'availability_status' => $validated['status'],
+    ]);
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Availability status updated successfully',
+        'status' => $validated['status']
+    ]);
+}
+
+
+
+
+
 }

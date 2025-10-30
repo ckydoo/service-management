@@ -51,7 +51,14 @@
                     @endif
                 </td>
                 <td>
-                    <a href="{{ route('service-requests.show', $request->id) }}" class="btn btn-sm btn-primary">
+                    @php
+                        $showRoute = match(auth()->user()->role) {
+                            'manager' => route('manager.service-requests.show', $request->id),
+                            'data_capturer' => route('data-capturer.service-requests.show', $request->id),
+                            default => route('service-requests.show', $request->id)
+                        };
+                    @endphp
+                    <a href="{{ $showRoute }}" class="btn btn-sm btn-primary">
                         <i class="fas fa-eye"></i> View
                     </a>
                 </td>

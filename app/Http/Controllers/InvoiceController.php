@@ -6,6 +6,7 @@ use App\Models\Invoice;
 use App\Models\ServiceRequest;
 use Illuminate\Http\Request;
 use App\Models\PaymentProof;
+use Illuminate\Support\Facades\Storage;
 
 
 class InvoiceController extends Controller
@@ -32,10 +33,15 @@ class InvoiceController extends Controller
         abort(403, 'Unauthorized');
     }
 
+    // ============================================================
+    // CUSTOMER METHODS - FIXED!
+    // ============================================================
+
     /**
-     * Display invoices for the logged-in customer
+     * Display invoices for the logged-in customer (Customer Index)
+     * This method is called by the route: route('invoices.index') for customers
      */
-    public function customerInvoices()
+    public function customerIndex()
     {
         $user = auth()->user();
         
@@ -59,7 +65,39 @@ class InvoiceController extends Controller
     }
 
     /**
-     * Show a single invoice
+     * Display invoices for the logged-in customer (legacy method)
+     */
+    public function customerInvoices()
+    {
+        return $this->customerIndex();
+    }
+
+    /**
+     * Show a single invoice (Customer view)
+     * This method is called by the route: route('invoices.show') for customers
+     */
+    public function customerShow($id)
+    {
+        $invoice = Invoice::with('serviceRequest.customer.user', 'serviceRequest.machine')
+            ->findOrFail($id);
+        
+        // Authorization check - customer can only see their own invoices
+        $user = auth()->user();
+        $customer = $user->customer;
+        
+        if ($invoice->serviceRequest->customer_id !== $customer->id) {
+            abort(403, 'Unauthorized - this invoice does not belong to you');
+        }
+
+        return view('invoices.show', ['invoice' => $invoice]);
+    }
+
+    // ============================================================
+    // SHARED METHODS (Manager, Costing Officer, Customer)
+    // ============================================================
+
+    /**
+     * Show a single invoice (Manager/Costing Officer view)
      */
     public function show($id)
     {
@@ -78,6 +116,10 @@ class InvoiceController extends Controller
         return view('invoices.show', ['invoice' => $invoice]);
     }
 
+    // ============================================================
+    // MANAGER METHODS
+    // ============================================================
+
     /**
      * Create a new invoice
      */
@@ -90,7 +132,7 @@ class InvoiceController extends Controller
         $existingInvoice = Invoice::where('service_request_id', $serviceRequestId)->first();
         if ($existingInvoice) {
             return redirect()->route('invoices.show', $existingInvoice->id)
-                            ->with('info', 'Invoice already exists for this service request');
+                ->with('info', 'Invoice already exists for this service request');
         }
 
         return view('invoices.create', ['serviceRequest' => $serviceRequest]);
@@ -174,20 +216,121 @@ class InvoiceController extends Controller
         return redirect()->route('invoices.index')->with('success', 'Invoice deleted successfully');
     }
 
+    // ============================================================
+    // COSTING OFFICER METHODS
+    // ============================================================
+
     /**
-     * Generate unique invoice number
+     * Display pending invoices (Costing Officer)
      */
-    private function generateInvoiceNumber()
+    public function pending()
     {
-        $lastInvoice = Invoice::orderByDesc('id')->first();
-        $nextNumber = ($lastInvoice ? intval(substr($lastInvoice->invoice_number, 4)) : 0) + 1;
-        return 'INV-' . str_pad($nextNumber, 6, '0', STR_PAD_LEFT);
+        $invoices = Invoice::with('serviceRequest.customer.user')
+            ->where('status', 'pending')
+            ->orWhere('payment_status', 'proof_uploaded')
+            ->paginate(15);
+
+        return view('costing-officer.invoices.pending', ['invoices' => $invoices]);
     }
 
-      /**
+    /**
+     * Update invoice cost (Costing Officer)
+     */
+    public function updateCost(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'amount' => 'required|numeric|min:0.01',
+        ]);
+
+        $invoice = Invoice::findOrFail($id);
+        $invoice->update(['amount' => $validated['amount']]);
+
+        return redirect()->back()->with('success', 'Invoice cost updated successfully');
+    }
+
+    /**
+     * Verify payment (Costing Officer)
+     */
+    public function verifyPayment(Request $request, $id)
+    {
+        $invoice = Invoice::findOrFail($id);
+        
+        $validated = $request->validate([
+            'payment_proof_id' => 'required|exists:payment_proofs,id',
+            'verification_status' => 'required|in:verified,rejected',
+            'verification_notes' => 'nullable|string|max:500',
+        ]);
+
+        try {
+            $paymentProof = PaymentProof::findOrFail($validated['payment_proof_id']);
+            
+            // Update payment proof
+            $paymentProof->update([
+                'verification_status' => $validated['verification_status'],
+                'verified_by' => auth()->id(),
+                'verified_at' => now(),
+                'verification_notes' => $validated['verification_notes'] ?? null,
+            ]);
+
+            // Update invoice status based on verification
+            if ($validated['verification_status'] === 'verified') {
+                $invoice->update([
+                    'status' => 'paid',
+                    'payment_status' => 'verified',
+                    'paid_date' => now(),
+                ]);
+                $message = 'Payment verified and invoice marked as paid';
+            } else {
+                $invoice->update([
+                    'payment_status' => 'rejected',
+                ]);
+                $message = 'Payment proof rejected. Customer will be notified';
+            }
+
+            // Send notification to customer
+            // Notification::send($invoice->serviceRequest->customer, new PaymentVerified($invoice));
+
+            return redirect()->route('costing-officer.invoices.pending')
+                            ->with('success', $message);
+
+        } catch (\Exception $e) {
+            return redirect()->back()
+                            ->with('error', 'Verification failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Costing Officer Reports
+     */
+    public function costingReports()
+    {
+        $stats = [
+            'total_invoices' => Invoice::count(),
+            'pending_invoices' => Invoice::where('status', 'pending')->count(),
+            'paid_invoices' => Invoice::where('status', 'paid')->count(),
+            'total_revenue' => Invoice::where('status', 'paid')->sum('amount'),
+        ];
+
+        return view('costing-officer.reports.index', ['stats' => $stats]);
+    }
+
+    /**
+     * Costing Officer Analytics
+     */
+    public function costingAnalytics()
+    {
+        // Add analytics logic here
+        return view('costing-officer.reports.analytics');
+    }
+
+    // ============================================================
+    // CUSTOMER PAYMENT METHODS
+    // ============================================================
+
+    /**
      * Upload payment proof for an invoice
      */
-    public function uploadPaymentProof(Request $request, $id)
+    public function uploadProofOfPayment(Request $request, $id)
     {
         $invoice = Invoice::findOrFail($id);
         
@@ -231,82 +374,7 @@ class InvoiceController extends Controller
 
         } catch (\Exception $e) {
             return redirect()->back()
-                            ->with('error', 'Failed to upload proof: ' . $e->getMessage())
-                            ->withInput();
-        }
-    }
-
-    /**
-     * Get pending payment proofs for Costing Officer
-     */
-    public function pending(Request $request)
-    {
-        // Only Costing Officer can access this
-        if (auth()->user()->role !== 'costing_officer') {
-            abort(403, 'Unauthorized');
-        }
-
-        $pendingProofs = PaymentProof::where('verification_status', 'pending')
-            ->with('invoice.serviceRequest.customer.user', 'invoice.serviceRequest.machine')
-            ->orderBy('created_at', 'desc')
-            ->paginate(15);
-
-        return view('payment-proofs.pending', ['paymentProofs' => $pendingProofs]);
-    }
-
-    /**
-     * Verify payment proof
-     */
-    public function verifyPayment(Request $request, $proofId)
-    {
-        // Only Costing Officer can verify
-        if (auth()->user()->role !== 'costing_officer') {
-            abort(403, 'Unauthorized');
-        }
-
-        $paymentProof = PaymentProof::findOrFail($proofId);
-
-        $validated = $request->validate([
-            'verification_status' => 'required|in:verified,rejected',
-            'verification_notes' => 'nullable|string|max:500',
-        ]);
-
-        try {
-            // Update payment proof
-            $paymentProof->update([
-                'verification_status' => $validated['verification_status'],
-                'verification_notes' => $validated['verification_notes'] ?? null,
-                'verified_by' => auth()->id(),
-                'verified_at' => now(),
-            ]);
-
-            // Update invoice based on verification result
-            $invoice = $paymentProof->invoice;
-
-            if ($validated['verification_status'] === 'verified') {
-                $invoice->update([
-                    'payment_status' => 'verified',
-                    'payment_verified_at' => now(),
-                ]);
-
-                $message = 'Payment verified successfully.';
-            } else {
-                $invoice->update([
-                    'payment_status' => 'rejected',
-                ]);
-
-                $message = 'Payment verification rejected.';
-            }
-
-            // Send notification to customer
-            // Notification::send($invoice->serviceRequest->customer, new PaymentVerified($invoice));
-
-            return redirect()->route('invoices.pending')
-                            ->with('success', $message);
-
-        } catch (\Exception $e) {
-            return redirect()->back()
-                            ->with('error', 'Verification failed: ' . $e->getMessage());
+                            ->with('error', 'Failed to upload proof: ' . $e->getMessage());
         }
     }
 
@@ -330,5 +398,19 @@ class InvoiceController extends Controller
         }
 
         return Storage::download($paymentProof->file_path);
+    }
+
+    // ============================================================
+    // HELPER METHODS
+    // ============================================================
+
+    /**
+     * Generate unique invoice number
+     */
+    private function generateInvoiceNumber()
+    {
+        $lastInvoice = Invoice::orderByDesc('id')->first();
+        $nextNumber = ($lastInvoice ? intval(substr($lastInvoice->invoice_number, 4)) : 0) + 1;
+        return 'INV-' . str_pad($nextNumber, 6, '0', STR_PAD_LEFT);
     }
 }

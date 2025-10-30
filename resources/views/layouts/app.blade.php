@@ -181,6 +181,18 @@
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
 
+        .stat-box {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 0.375rem;
+            box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+        }
+
+        .card-dashboard {
+            border: none;
+            box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+        }
+
         @media (max-width: 768px) {
             .sidebar {
                 position: fixed;
@@ -222,6 +234,40 @@
         </div>
 
         @auth
+            <!-- Admin Navigation -->
+            @if(auth()->user()->role === 'admin')
+                <div class="nav-section">
+                    <h6 class="nav-section-title">Dashboard</h6>
+                    <a href="{{ route('admin.dashboard') }}" class="nav-link {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}">
+                        <i class="fas fa-tachometer-alt"></i> Dashboard
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <h6 class="nav-section-title">User Management</h6>
+                    <a href="{{ route('admin.users.index') }}" class="nav-link {{ request()->routeIs('admin.users.*') ? 'active' : '' }}">
+                        <i class="fas fa-users-cog"></i> Manage Users
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <h6 class="nav-section-title">Reports & Analytics</h6>
+                    <a href="{{ route('admin.reports.index') }}" class="nav-link {{ request()->routeIs('admin.reports.index') ? 'active' : '' }}">
+                        <i class="fas fa-chart-bar"></i> Reports
+                    </a>
+                    <a href="{{ route('admin.reports.activity') }}" class="nav-link {{ request()->routeIs('admin.reports.activity') ? 'active' : '' }}">
+                        <i class="fas fa-history"></i> Activity Log
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <h6 class="nav-section-title">System</h6>
+                    <a href="{{ route('admin.settings') }}" class="nav-link {{ request()->routeIs('admin.settings') ? 'active' : '' }}">
+                        <i class="fas fa-cog"></i> Settings
+                    </a>
+                </div>
+            @endif
+
             <!-- Manager Navigation -->
             @if(auth()->user()->role === 'manager')
                 <div class="nav-section">
@@ -286,11 +332,22 @@
             <!-- Data Capturer Navigation -->
             @if(auth()->user()->role === 'data_capturer')
                 <div class="nav-section">
+                    <h6 class="nav-section-title">Dashboard</h6>
                     <a href="{{ route('data-capturer.dashboard') }}" class="nav-link {{ request()->routeIs('data-capturer.dashboard') ? 'active' : '' }}">
                         <i class="fas fa-inbox"></i> Dashboard
                     </a>
+                </div>
+
+                <div class="nav-section">
+                    <h6 class="nav-section-title">Data Management</h6>
                     <a href="{{ route('data-capturer.service-requests.index') }}" class="nav-link {{ request()->routeIs('data-capturer.service-requests.*') ? 'active' : '' }}">
-                        <i class="fas fa-list-check"></i> Requests to Review
+                        <i class="fas fa-list-check"></i> Service Requests
+                    </a>
+                    <a href="{{ route('data-capturer.customers.index') }}" class="nav-link {{ request()->routeIs('data-capturer.customers.*') ? 'active' : '' }}">
+                        <i class="fas fa-users"></i> Customers
+                    </a>
+                    <a href="{{ route('data-capturer.quotations.index') }}" class="nav-link {{ request()->routeIs('data-capturer.quotations.*') ? 'active' : '' }}">
+                        <i class="fas fa-file-alt"></i> Quotations
                     </a>
                 </div>
             @endif
@@ -298,8 +355,16 @@
             <!-- Costing Officer Navigation -->
             @if(auth()->user()->role === 'costing_officer')
                 <div class="nav-section">
+                    <h6 class="nav-section-title">Invoices</h6>
                     <a href="{{ route('costing-officer.invoices.pending') }}" class="nav-link {{ request()->routeIs('costing-officer.invoices.*') ? 'active' : '' }}">
                         <i class="fas fa-hourglass"></i> Pending Payments
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <h6 class="nav-section-title">Reports</h6>
+                    <a href="{{ route('costing-officer.reports.index') }}" class="nav-link {{ request()->routeIs('costing-officer.reports.*') ? 'active' : '' }}">
+                        <i class="fas fa-chart-pie"></i> Reports
                     </a>
                 </div>
             @endif
@@ -345,6 +410,20 @@
 
         <!-- Page Content -->
         <div class="content-wrapper">
+            @if(session('success'))
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    {{ session('success') }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            @endif
+
+            @if(session('error'))
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    {{ session('error') }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            @endif
+
             @yield('content')
         </div>
     </div>
