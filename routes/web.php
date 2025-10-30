@@ -86,6 +86,7 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
         Route::get('/{id}/edit', [TechnicianController::class, 'edit'])->name('edit');
         Route::patch('/{id}', [TechnicianController::class, 'update'])->name('update');
         Route::post('/{id}/assign-job/{jobCardId}', [TechnicianController::class, 'assignJob'])->name('assign-job');
+
     });
 
     // Job Cards
@@ -107,11 +108,17 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
         Route::delete('/{id}', [InvoiceController::class, 'destroy'])->name('destroy');
     });
 
-    // Quotations
-    Route::prefix('quotations')->name('quotations.')->group(function () {
+
+     // Quotations
+     Route::prefix('quotations')->name('quotations.')->group(function () {
         Route::get('/', [QuotationController::class, 'index'])->name('index');
         Route::get('/{id}', [QuotationController::class, 'show'])->name('show');
-        Route::patch('/{id}/status', [QuotationController::class, 'updateStatus'])->name('update-status');
+        Route::post('/{id}/approve', [QuotationController::class, 'approve'])->name('approve');
+        Route::post('/{id}/reject', [QuotationController::class, 'reject'])->name('reject');
+
+        // Manual assignment (fallback)
+        Route::post('/{id}/manual-assign', [QuotationController::class, 'manualAssign'])->name('manual-assign');
+        Route::get('/pending-assignments', [QuotationController::class, 'pendingAssignments'])->name('pending-assignments');
     });
 });
 
@@ -173,6 +180,10 @@ Route::middleware(['auth', 'role:technician'])->prefix('technician')->name('tech
 // CUSTOMER ROUTES
 // ============================================================
 Route::middleware(['auth', 'role:customer'])->group(function () {
+       // Quotation approval/rejection
+       Route::post('quotations/{id}/approve', [QuotationController::class, 'approve'])->name('quotations.approve');
+       Route::post('quotations/{id}/reject', [QuotationController::class, 'reject'])->name('quotations.reject');
+
     // Service Requests
     Route::prefix('service-requests')->name('service-requests.')->group(function () {
         Route::get('/', [ServiceRequestController::class, 'customerIndex'])->name('index');

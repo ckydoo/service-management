@@ -118,10 +118,9 @@ class ServiceRequestController extends Controller
      */
     public function capturerShow($id)
     {
-        $request = ServiceRequest::with('customer', 'machine', 'quotation', 'jobCard')
-            ->findOrFail($id);
+        $serviceRequest = ServiceRequest::findOrFail($id);
 
-        return view('service-requests.show', ['request' => $request]);
+        return view('service-requests.show', compact('serviceRequest')); // ✅ Passing the data
     }
 
     /**

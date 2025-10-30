@@ -21,7 +21,7 @@ class InvoiceController extends Controller
         }
 
         $user = auth()->user();
-        
+
         if ($user->role === 'customer') {
             return $this->customerInvoices();
         } elseif ($user->role === 'manager') {
@@ -44,10 +44,10 @@ class InvoiceController extends Controller
     public function customerIndex()
     {
         $user = auth()->user();
-        
+
         // Get customer ID from user
         $customer = $user->customer;
-        
+
         if (!$customer) {
             // Return empty paginator
             $invoices = Invoice::query()->paginate(15);
@@ -80,11 +80,11 @@ class InvoiceController extends Controller
     {
         $invoice = Invoice::with('serviceRequest.customer.user', 'serviceRequest.machine')
             ->findOrFail($id);
-        
+
         // Authorization check - customer can only see their own invoices
         $user = auth()->user();
         $customer = $user->customer;
-        
+
         if ($invoice->serviceRequest->customer_id !== $customer->id) {
             abort(403, 'Unauthorized - this invoice does not belong to you');
         }
@@ -103,7 +103,7 @@ class InvoiceController extends Controller
     {
         $invoice = Invoice::with('serviceRequest.customer.user', 'serviceRequest.machine')
             ->findOrFail($id);
-        
+
         // Authorization check
         $user = auth()->user();
         if ($user->role === 'customer') {
@@ -207,7 +207,7 @@ class InvoiceController extends Controller
     public function destroy($id)
     {
         $invoice = Invoice::findOrFail($id);
-        
+
         if ($invoice->status === 'paid') {
             return redirect()->back()->with('error', 'Cannot delete a paid invoice');
         }
@@ -254,7 +254,7 @@ class InvoiceController extends Controller
     public function verifyPayment(Request $request, $id)
     {
         $invoice = Invoice::findOrFail($id);
-        
+
         $validated = $request->validate([
             'payment_proof_id' => 'required|exists:payment_proofs,id',
             'verification_status' => 'required|in:verified,rejected',
@@ -263,7 +263,7 @@ class InvoiceController extends Controller
 
         try {
             $paymentProof = PaymentProof::findOrFail($validated['payment_proof_id']);
-            
+
             // Update payment proof
             $paymentProof->update([
                 'verification_status' => $validated['verification_status'],
@@ -308,7 +308,7 @@ class InvoiceController extends Controller
             'total_invoices' => Invoice::count(),
             'pending_invoices' => Invoice::where('status', 'pending')->count(),
             'paid_invoices' => Invoice::where('status', 'paid')->count(),
-            'total_revenue' => Invoice::where('status', 'paid')->sum('amount'),
+            'total_revenue' => Invoice::where('status', 'paid')->sum('total_amount'),
         ];
 
         return view('costing-officer.reports.index', ['stats' => $stats]);
@@ -333,7 +333,7 @@ class InvoiceController extends Controller
     public function uploadProofOfPayment(Request $request, $id)
     {
         $invoice = Invoice::findOrFail($id);
-        
+
         // Authorization: only customer can upload proof for their own invoice
         $user = auth()->user();
         if ($user->role === 'customer') {
